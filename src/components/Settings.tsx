@@ -6,6 +6,16 @@ import { Label } from './ui/label';
 import { Card, CardContent } from './ui/card';
 import { Separator } from './ui/separator';
 import { Badge } from './ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
 import { 
   User, 
   Mail, 
@@ -19,8 +29,10 @@ import {
   Save,
   X,
   Key,
-  Recycle
+  Recycle,
+  LogOut
 } from 'lucide-react';
+import { auth } from '../utils/api';
 
 interface SettingsProps {
   isOpen: boolean;
@@ -33,6 +45,7 @@ type SettingsView = 'main' | 'edit-profile' | 'change-password' | 'language' | '
 export function Settings({ isOpen, onClose, initialView = 'main' }: SettingsProps) {
   const [currentView, setCurrentView] = useState<SettingsView>(initialView);
   const [isEditing, setIsEditing] = useState(false);
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
 
   // Reset view when sheet opens with a new initialView
   useEffect(() => {
@@ -181,6 +194,58 @@ export function Settings({ isOpen, onClose, initialView = 'main' }: SettingsProp
           </CardContent>
         </Card>
       </div>
+
+      <Separator className="bg-purple-300/20" />
+
+      {/* Logout Section */}
+      <div>
+        <h3 className="text-purple-200 text-sm mb-3 px-1">Conta</h3>
+        <Button 
+          variant="outline" 
+          className="w-full border-red-400/30 text-red-400 hover:bg-red-600/20 hover:text-red-300 justify-start"
+          onClick={() => setShowLogoutDialog(true)}
+        >
+          <LogOut className="w-4 h-4 mr-2" />
+          Sair da Conta
+        </Button>
+      </div>
+
+      {/* Logout Dialog */}
+      <AlertDialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
+        <AlertDialogContent className="bg-gray-900 border-purple-300/20">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white">Sair da conta?</AlertDialogTitle>
+            <AlertDialogDescription className="text-purple-200">
+              Tem certeza que deseja sair? Você precisará fazer login novamente para acessar sua conta.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-white/10 border-purple-300/30 text-white hover:bg-white/20">
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 text-white hover:bg-red-700"
+              onClick={async () => {
+                try {
+                  const { toast } = await import('sonner@2.0.3');
+                  await auth.signOut();
+                  toast.success('Você saiu com sucesso!');
+                  onClose();
+                  setTimeout(() => {
+                    window.location.href = '/';
+                  }, 500);
+                } catch (error) {
+                  console.error('Erro ao sair:', error);
+                  const { toast } = await import('sonner@2.0.3');
+                  toast.error('Erro ao sair. Tente novamente.');
+                }
+              }}
+            >
+              Sim, sair
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 

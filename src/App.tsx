@@ -1,50 +1,109 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dashboard } from './components/Dashboard';
+import { Leaderboard } from './components/Leaderboard';
 import { StationsMap } from './components/StationsMap';
 import { RewardsMap } from './components/RewardsMap';
 import { Profile } from './components/Profile';
+import { AmbassadorDashboard } from './components/AmbassadorDashboard';
 import { AmbassadorValidation } from './components/AmbassadorValidation';
-import { Leaderboard } from './components/Leaderboard';
+import { CommerceValidator } from './components/CommerceValidator';
+import { MissionsAchievements } from './components/MissionsAchievements';
+import { Community } from './components/Community';
 import { BottomNavigation } from './components/BottomNavigation';
 import { Login } from './components/Login';
 import { Signup } from './components/Signup';
+import { QuickTutorial } from './components/QuickTutorial';
+import { SetupInstructions } from './components/SetupInstructions';
 import { Button } from './components/ui/button';
-import { Badge } from './components/ui/badge';
-import { Card, CardContent } from './components/ui/card';
-import { Users, Crown } from 'lucide-react';
+import { HelpCircle } from 'lucide-react';
+import { Toaster } from './components/ui/sonner';
+import { auth } from './utils/api';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isAmbassador, setIsAmbassador] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [isFirstVisit, setIsFirstVisit] = useState(true);
+  const [showSetupInstructions, setShowSetupInstructions] = useState(false);
 
   const handleLogin = () => {
     setIsAuthenticated(true);
+    setIsFirstVisit(false);
+    
+    // Verificar se o usuário é embaixador
+    const user = auth.getCurrentUser();
+    if (user && user.tipo === 'embaixador') {
+      setIsAmbassador(true);
+    }
   };
 
   const handleSignup = () => {
     setIsAuthenticated(true);
+    setShowTutorial(true);
+    
+    // Verificar se o usuário é embaixador
+    const user = auth.getCurrentUser();
+    if (user && user.tipo === 'embaixador') {
+      setIsAmbassador(true);
+    }
   };
+
+  useEffect(() => {
+    if (isAuthenticated && isFirstVisit) {
+      setShowTutorial(true);
+    }
+    
+    // Verificar o tipo de usuário ao autenticar
+    if (isAuthenticated) {
+      const user = auth.getCurrentUser();
+      if (user && user.tipo === 'embaixador') {
+        setIsAmbassador(true);
+      }
+    }
+  }, [isAuthenticated, isFirstVisit]);
+
+  useEffect(() => {
+    const handleNavigate = (event: CustomEvent) => {
+      setActiveTab(event.detail);
+    };
+    
+    window.addEventListener('navigate', handleNavigate as EventListener);
+    return () => window.removeEventListener('navigate', handleNavigate as EventListener);
+  }, []);
 
   const renderActiveScreen = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <Dashboard />;
-      case 'stations':
-        return <StationsMap />;
+        return <Dashboard onNavigateToStations={() => setActiveTab('stations')} />;
       case 'leaderboard':
         return <Leaderboard />;
+      case 'stations':
+        return <StationsMap />;
       case 'rewards':
         return <RewardsMap />;
       case 'profile':
-        return <Profile />;
-      case 'validation':
-        return isAmbassador ? <AmbassadorValidation /> : <Dashboard />;
+        return <Profile onNavigateToAdmin={(screen) => setActiveTab(screen)} />;
+      case 'ambassador-dashboard':
+        return <AmbassadorDashboard />;
+      case 'ambassador-validation':
+        return <AmbassadorValidation />;
+      case 'commerce-validator':
+        return <CommerceValidator />;
+      case 'missions':
+        return <MissionsAchievements />;
+      case 'community':
+        return <Community />;
       default:
-        return <Dashboard />;
+        return <Dashboard onNavigateToStations={() => setActiveTab('stations')} />;
     }
   };
+
+  // Show setup instructions if needed
+  if (showSetupInstructions) {
+    return <SetupInstructions />;
+  }
 
   // Show authentication screens if not authenticated
   if (!isAuthenticated) {
@@ -53,6 +112,7 @@ export default function App() {
         <Login 
           onLogin={handleLogin}
           onSwitchToSignup={() => setAuthMode('signup')}
+          onShowSetup={() => setShowSetupInstructions(true)}
         />
       );
     } else {
@@ -60,6 +120,7 @@ export default function App() {
         <Signup 
           onSignup={handleSignup}
           onSwitchToLogin={() => setAuthMode('login')}
+          onShowSetup={() => setShowSetupInstructions(true)}
         />
       );
     }
@@ -67,38 +128,18 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-950 to-blue-950 pb-20">
-      {/* Ambassador Toggle (Demo Purpose) */}
-      {activeTab === 'dashboard' && (
-        <div className="fixed top-4 right-4 z-50">
-          <Card className="border border-purple-300/20 bg-white/10 backdrop-blur">
-            <CardContent className="p-3">
-              <div className="flex items-center gap-2 text-xs">
-                <span className="text-purple-200">Modo:</span>
-                <Button
-                  variant={isAmbassador ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setIsAmbassador(!isAmbassador)}
-                  className={`text-xs h-7 px-2 ${
-                    isAmbassador ? 'bg-purple-600 hover:bg-purple-700' : 'border-purple-300/30 text-purple-200 hover:bg-purple-600/20'
-                  }`}
-                >
-                  {isAmbassador ? (
-                    <>
-                      <Crown className="w-3 h-3 mr-1" />
-                      Embaixador
-                    </>
-                  ) : (
-                    <>
-                      <Users className="w-3 h-3 mr-1" />
-                      Usuário
-                    </>
-                  )}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+      {/* Help Button - Moved to bottom left to avoid covering avatar */}
+      <div className="fixed bottom-24 left-4 z-40">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => setShowTutorial(true)}
+          className="bg-white/10 backdrop-blur border-purple-300/20 text-purple-200 hover:bg-white/20 hover:text-white shadow-lg"
+        >
+          <HelpCircle className="w-4 h-4 mr-1" />
+          Ajuda
+        </Button>
+      </div>
 
       {/* Main Content */}
       <main className="relative">
@@ -112,15 +153,16 @@ export default function App() {
         isAmbassador={isAmbassador}
       />
 
-      {/* App Badge */}
-      <div className="fixed top-4 left-4 z-40">
-        <Badge 
-          variant="outline" 
-          className="bg-white/10 backdrop-blur border-purple-300/20 text-purple-200 text-xs px-2 py-1"
-        >
-          Circuito Jovem Tech
-        </Badge>
-      </div>
+      {/* Quick Tutorial */}
+      {showTutorial && (
+        <QuickTutorial onClose={() => {
+          setShowTutorial(false);
+          setIsFirstVisit(false);
+        }} />
+      )}
+
+      {/* Toast Notifications */}
+      <Toaster position="top-center" />
     </div>
   );
 }

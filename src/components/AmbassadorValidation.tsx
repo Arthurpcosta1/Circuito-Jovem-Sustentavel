@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Badge } from './ui/badge';
-import { QrCode, Scan, Check, X, User, Scale, Package } from 'lucide-react';
+import { QrCode, Scan, Check, X, User, Scale, Package, Camera, AlertCircle } from 'lucide-react';
 
 interface CollectionData {
   userId: string;
@@ -23,14 +23,14 @@ export function AmbassadorValidation() {
   const [materialType, setMaterialType] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
+  const [cameraError, setCameraError] = useState<string>('');
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const scanIntervalRef = useRef<number | null>(null);
 
-  // Mock user data from QR scan
-  const mockUserData = {
-    userId: 'user_123',
-    userName: 'Arthur Silva',
-    userLevel: 'Guardião Ambiental',
-    avatar: 'AS'
-  };
+  // Mock user data - será substituído pelos dados reais do QR code
+  const [scannedUserData, setScannedUserData] = useState<any>(null);
 
   const materialTypes = [
     { value: 'papel', label: 'Papel', keysPerKg: 2 },
@@ -46,20 +46,163 @@ export function AmbassadorValidation() {
     return Math.floor(weightNum * (materialData?.keysPerKg || 0));
   };
 
-  const handleQRScan = () => {
+  useEffect(() => {
+    // Cleanup on unmount
+    return () => {
+      stopCamera();
+    };
+  }, []);
+
+  const startCamera = async () => {
+    setCameraError('');
     setScanMode(true);
-    // Simulate QR scan delay
-    setTimeout(() => {
+    
+    try {
+      // Pedir permissão para câmera
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          facingMode: 'environment', // Usar câmera traseira em dispositivos móveis
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        } 
+      });
+      
+      setCameraStream(stream);
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+        
+        // Começar a escanear após o vídeo estar pronto
+        videoRef.current.onloadedmetadata = () => {
+          startScanning();
+        };
+      }
+    } catch (error: any) {
+      console.error('Erro ao acessar câmera:', error);
+      if (error.name === 'NotAllowedError') {
+        setCameraError('⚠️ Permissão de câmera negada.\n\n📱 Como permitir:\n\n1. Clique no ícone 🔒 ou ⓘ na barra de endereços (ao lado da URL)\n\n2. Procure por "Câmera" e mude para "Permitir"\n\n3. Recarregue esta página\n\nOu use o código manual abaixo! 👇');
+      } else if (error.name === 'NotFoundError') {
+        setCameraError('Nenhuma câmera encontrada no dispositivo. Use o código manual abaixo.');
+      } else {
+        setCameraError('Erro ao acessar a câmera. Use o código manual abaixo.');
+      }
+      setScanMode(false);
+    }
+  };
+
+  const stopCamera = () => {
+    if (scanIntervalRef.current) {
+      clearInterval(scanIntervalRef.current);
+      scanIntervalRef.current = null;
+    }
+    
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+    }
+    
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    
+    setScanMode(false);
+  };
+
+  const startScanning = () => {
+    // Carregar biblioteca jsQR dinamicamente
+    if (!(window as any).jsQR) {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js';
+      script.onload = () => {
+        scanQRCode();
+      };
+      document.head.appendChild(script);
+    } else {
+      scanQRCode();
+    }
+  };
+
+  const scanQRCode = () => {
+    const jsQR = (window as any).jsQR;
+    if (!jsQR || !videoRef.current || !canvasRef.current) return;
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const context = canvas.getContext('2d');
+    
+    if (!context) return;
+
+    // Configurar tamanho do canvas
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    // Tentar escanear QR code a cada 300ms
+    scanIntervalRef.current = window.setInterval(() => {
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+        if (code) {
+          // QR Code encontrado!
+          handleQRCodeDetected(code.data);
+          stopCamera();
+        }
+      }
+    }, 300);
+  };
+
+  const handleQRCodeDetected = (qrData: string) => {
+    // Processar dados do QR code
+    console.log('QR Code detectado:', qrData);
+    
+    try {
+      // Tentar fazer parse dos dados do QR code
+      const userData = JSON.parse(qrData);
+      
+      // Validar se é um QR code do Circuito Jovem
+      if (userData.userId && userData.userName) {
+        setScannedUserData(userData);
+        setCollectionData({
+          userId: userData.userId,
+          userName: userData.userName,
+          userLevel: userData.userLevel || 'Iniciante',
+          weight: '',
+          materialType: '',
+          keysToAward: 0
+        });
+      } else {
+        // QR code inválido
+        setCameraError('QR code inválido. Por favor, use o QR code gerado no perfil do app.');
+        setScanMode(false);
+      }
+    } catch (error) {
+      // Se não for JSON válido, pode ser um QR code antigo ou de teste
+      console.error('Erro ao processar QR code:', error);
+      
+      // Para fins de desenvolvimento, usar dados de fallback
+      const fallbackData = {
+        userId: 'user_dev_' + Date.now(),
+        userName: 'Usuário (QR Teste)',
+        userLevel: 'Iniciante',
+        userKeys: 0
+      };
+      
+      setScannedUserData(fallbackData);
       setCollectionData({
-        userId: mockUserData.userId,
-        userName: mockUserData.userName,
-        userLevel: mockUserData.userLevel,
+        userId: fallbackData.userId,
+        userName: fallbackData.userName,
+        userLevel: fallbackData.userLevel,
         weight: '',
         materialType: '',
         keysToAward: 0
       });
-      setScanMode(false);
-    }, 2000);
+    }
+  };
+
+  const handleQRScan = () => {
+    startCamera();
   };
 
   const handleWeightChange = (value: string) => {
@@ -86,11 +229,37 @@ export function AmbassadorValidation() {
     }
   };
 
-  const handleConfirmCollection = () => {
+  const handleConfirmCollection = async () => {
     setIsProcessing(true);
     
-    // Simulate processing delay
-    setTimeout(() => {
+    try {
+      console.log('🔵 Enviando coleta para validação...');
+      
+      // Fazer chamada real à API
+      const response = await fetch(`https://${import.meta.env.VITE_SUPABASE_PROJECT_ID || 'ieyqcvafbylfnzzjrvvd'}.supabase.co/functions/v1/make-server-7af4432d/coletas/validar`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
+        },
+        body: JSON.stringify({
+          usuario_id: collectionData?.userId,
+          estacao_id: 'estacao-default-recife', // TODO: Usar estação real do embaixador
+          peso_kg: parseFloat(weight),
+          material_tipo: materialType,
+          embaixador_id: null, // TODO: Usar ID real do embaixador
+          observacoes: `Validado via QR Code - ${new Date().toLocaleString('pt-BR')}`
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Erro ao validar coleta');
+      }
+
+      console.log('✅ Coleta validada:', data);
+      
       setIsProcessing(false);
       setIsComplete(true);
       
@@ -98,17 +267,24 @@ export function AmbassadorValidation() {
       setTimeout(() => {
         setIsComplete(false);
         setCollectionData(null);
+        setScannedUserData(null);
         setWeight('');
         setMaterialType('');
       }, 3000);
-    }, 1500);
+    } catch (error) {
+      console.error('❌ Erro ao confirmar coleta:', error);
+      setIsProcessing(false);
+      setCameraError(error instanceof Error ? error.message : 'Erro ao processar a coleta. Tente novamente.');
+    }
   };
 
   const handleCancel = () => {
+    stopCamera();
     setCollectionData(null);
+    setScannedUserData(null);
     setWeight('');
     setMaterialType('');
-    setScanMode(false);
+    setCameraError('');
   };
 
   if (isComplete) {
@@ -157,33 +333,72 @@ export function AmbassadorValidation() {
           <div className="space-y-6">
             <Card className="bg-white/10 backdrop-blur border-purple-300/20">
               <CardContent className="p-8 text-center">
-                <div className={`w-32 h-32 mx-auto mb-6 rounded-xl border-2 border-dashed flex items-center justify-center ${
-                  scanMode ? 'border-cyan-400 bg-cyan-500/10' : 'border-purple-300/30 bg-white/5'
-                }`}>
-                  {scanMode ? (
-                    <div className="space-y-2">
-                      <Scan className="w-8 h-8 text-cyan-400 mx-auto animate-pulse" />
-                      <p className="text-xs text-cyan-400">Escaneando...</p>
+                {scanMode ? (
+                  <div className="space-y-4">
+                    <div className="relative w-full aspect-square max-w-sm mx-auto bg-black rounded-xl overflow-hidden">
+                      <video 
+                        ref={videoRef}
+                        className="w-full h-full object-cover"
+                        autoPlay
+                        playsInline
+                        muted
+                      />
+                      <canvas 
+                        ref={canvasRef}
+                        className="hidden"
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className="w-48 h-48 border-2 border-cyan-400 rounded-xl">
+                          <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-cyan-400 rounded-tl-xl"></div>
+                          <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-cyan-400 rounded-tr-xl"></div>
+                          <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-cyan-400 rounded-bl-xl"></div>
+                          <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-cyan-400 rounded-br-xl"></div>
+                        </div>
+                      </div>
                     </div>
-                  ) : (
-                    <QrCode className="w-12 h-12 text-purple-400" />
-                  )}
-                </div>
-                
-                <h3 className="text-white mb-2">Escanear QR Code do Usuário</h3>
-                <p className="text-sm text-purple-200 mb-6">
-                  Posicione o código QR do usuário na frente da câmera
-                </p>
-                
-                <Button 
-                  size="lg" 
-                  className="w-full bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-700 hover:to-purple-700 text-white"
-                  onClick={handleQRScan}
-                  disabled={scanMode}
-                >
-                  <Scan className="w-5 h-5 mr-2" />
-                  {scanMode ? 'Escaneando...' : 'Iniciar Escaneamento'}
-                </Button>
+                    <p className="text-sm text-cyan-400 animate-pulse flex items-center justify-center gap-2">
+                      <Camera className="w-4 h-4" />
+                      Posicione o QR code no quadrado
+                    </p>
+                    <Button 
+                      variant="outline"
+                      className="w-full border-purple-300/30 text-purple-200 hover:bg-purple-600/20"
+                      onClick={handleCancel}
+                    >
+                      <X className="w-4 h-4 mr-2" />
+                      Cancelar
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="w-32 h-32 mx-auto mb-6 rounded-xl border-2 border-dashed border-purple-300/30 bg-white/5 flex items-center justify-center">
+                      <QrCode className="w-12 h-12 text-purple-400" />
+                    </div>
+                    
+                    <h3 className="text-white mb-2">Escanear QR Code do Usuário</h3>
+                    <p className="text-sm text-purple-200 mb-6">
+                      Posicione o código QR do usuário na frente da câmera
+                    </p>
+                    
+                    {cameraError && (
+                      <div className="mb-4 p-4 bg-yellow-500/10 border border-yellow-400/30 rounded-lg">
+                        <div className="flex items-start gap-3 text-left">
+                          <AlertCircle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+                          <p className="text-sm text-yellow-300 whitespace-pre-line">{cameraError}</p>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <Button 
+                      size="lg" 
+                      className="w-full bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-700 hover:to-purple-700 text-white"
+                      onClick={handleQRScan}
+                    >
+                      <Camera className="w-5 h-5 mr-2" />
+                      Iniciar Escaneamento
+                    </Button>
+                  </>
+                )}
               </CardContent>
             </Card>
 

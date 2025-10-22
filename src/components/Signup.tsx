@@ -3,32 +3,91 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Eye, EyeOff, Mail, Lock, User, School, Smartphone } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, User, School, Smartphone, Loader2, AlertCircle } from 'lucide-react';
+import { auth } from '../utils/api';
 
 interface SignupProps {
   onSignup: () => void;
   onSwitchToLogin: () => void;
+  onShowSetup?: () => void;
 }
 
-export const Signup: React.FC<SignupProps> = ({ onSignup, onSwitchToLogin }) => {
+export const Signup: React.FC<SignupProps> = ({ onSignup, onSwitchToLogin, onShowSetup }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
     confirmPassword: '',
     institution: '',
+    curso: '',
+    telefone: '',
     userType: ''
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (formData.password !== formData.confirmPassword) {
-      alert('As senhas não coincidem');
+      setError('As senhas não coincidem');
       return;
     }
-    onSignup();
+    
+    if (formData.password.length < 6) {
+      setError('A senha deve ter no mínimo 6 caracteres');
+      return;
+    }
+    
+    setLoading(true);
+    setError(null);
+
+    if (!formData.userType) {
+      setError('Por favor, selecione o tipo de usuário');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const result = await auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        nome: formData.name,
+        telefone: formData.telefone,
+        universidade: formData.institution,
+        curso: formData.curso,
+        tipo: formData.userType === 'student' ? 'estudante' : 
+              formData.userType === 'ambassador' ? 'embaixador' : 'comunidade',
+      });
+      
+      console.log('Cadastro realizado com sucesso!', result);
+      onSignup();
+    } catch (err) {
+      console.error('Signup error:', err);
+      let errorMessage = err instanceof Error ? err.message : 'Erro ao criar conta';
+      
+      // Traduzir mensagens de erro comuns
+      if (errorMessage.includes('User already registered')) {
+        errorMessage = 'Este email já está cadastrado. Tente fazer login.';
+      } else if (errorMessage.includes('table') || errorMessage.includes('usuarios_7af4432d') || errorMessage.includes('schema cache') || errorMessage.includes('relation') || errorMessage.includes('does not exist')) {
+        errorMessage = 'Banco de dados não configurado. Redirecionando...';
+        setError(errorMessage);
+        
+        // Redirecionar para setup após 2 segundos
+        if (onShowSetup) {
+          setTimeout(() => onShowSetup(), 2000);
+        }
+        return;
+      } else if (errorMessage.includes('Password')) {
+        errorMessage = 'A senha deve ter no mínimo 6 caracteres';
+      }
+      
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleInputChange = (field: string, value: string) => {
@@ -163,11 +222,26 @@ export const Signup: React.FC<SignupProps> = ({ onSignup, onSwitchToLogin }) => 
                 </div>
               </div>
 
+              {error && (
+                <div className="flex items-center gap-2 text-red-400 bg-red-950/30 p-3 rounded text-sm">
+                  <AlertCircle className="w-4 h-4" />
+                  {error}
+                </div>
+              )}
+
               <Button 
                 type="submit" 
-                className="w-full bg-gradient-to-r from-purple-500 to-cyan-500 hover:from-purple-600 hover:to-cyan-600 text-white"
+                disabled={loading}
+                className="w-full bg-gradient-to-r from-purple-500 to-cyan-500 hover:from-purple-600 hover:to-cyan-600 text-white disabled:opacity-50"
               >
-                Criar conta
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Criando conta...
+                  </>
+                ) : (
+                  'Criar conta'
+                )}
               </Button>
 
               <div className="text-center pt-4">

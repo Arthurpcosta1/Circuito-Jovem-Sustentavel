@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+
 import { Gift, Lock, QrCode, Coffee, Book, Film, Utensils, Gamepad2, Dumbbell, Award } from 'lucide-react';
 
 interface Reward {
@@ -132,41 +132,25 @@ export function RewardsMap() {
     <div className="min-h-screen bg-gray-900">
       {/* Header */}
       <div className="bg-gradient-to-r from-purple-600 to-cyan-600">
-        <div className="max-w-md mx-auto px-6 py-8">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-gray-900/20 backdrop-blur rounded-full flex items-center justify-center">
-                <Gift className="w-6 h-6 text-gray-900" />
-              </div>
-              <div>
-                <h1 className="text-xl text-gray-900">Mapa de Vantagens</h1>
-                <p className="text-gray-800 text-sm">Seus benefícios exclusivos</p>
-              </div>
+        <div className="max-w-md mx-auto px-6 py-6">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-gray-900/20 backdrop-blur rounded-full flex items-center justify-center">
+              <Gift className="w-6 h-6 text-gray-900" />
+            </div>
+            <div>
+              <h1 className="text-xl text-gray-900">Benefícios</h1>
+              <p className="text-gray-800 text-sm">Resgate suas vantagens</p>
             </div>
           </div>
         </div>
       </div>
 
       <div className="max-w-md mx-auto">
-        {/* Category Filters */}
+        {/* Category Filters - Simplified */}
         <div className="bg-gray-800/50 border-b border-purple-300/20">
           <div className="px-6 py-4">
-            <Tabs value={selectedCategory} onValueChange={setSelectedCategory}>
-              <TabsList className="grid w-full grid-cols-3 lg:grid-cols-5 gap-1 bg-gray-800/80">
-                {categories.slice(0, 3).map((category) => (
-                  <TabsTrigger 
-                    key={category.id} 
-                    value={category.id} 
-                    className="text-xs px-2 py-1 data-[state=active]:bg-purple-600 data-[state=active]:text-white text-purple-200"
-                  >
-                    {category.label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
-            
-            <div className="flex gap-2 mt-3 overflow-x-auto">
-              {categories.slice(3).map((category) => (
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {categories.map((category) => (
                 <Button
                   key={category.id}
                   variant={selectedCategory === category.id ? "default" : "outline"}
@@ -178,7 +162,7 @@ export function RewardsMap() {
                       : 'border-purple-300/30 text-purple-200 hover:bg-purple-600/20'
                   }`}
                 >
-                  {category.label} ({category.count})
+                  {category.label}
                 </Button>
               ))}
             </div>
@@ -261,22 +245,16 @@ export function RewardsMap() {
           )}
         </div>
 
-        {/* Stats Summary */}
+        {/* Footer */}
         <div className="bg-gradient-to-r from-purple-600 to-cyan-600 border-t border-purple-300/20 mt-6">
           <div className="max-w-md mx-auto px-6 py-6">
-            <div className="grid grid-cols-3 gap-4 text-center">
-              <div>
-                <p className="text-2xl text-gray-900">{rewards.filter(r => r.isUnlocked).length}</p>
-                <p className="text-xs text-gray-800">Desbloqueadas</p>
-              </div>
-              <div>
-                <p className="text-2xl text-gray-900">{rewards.filter(r => !r.isUnlocked).length}</p>
-                <p className="text-xs text-gray-800">Bloqueadas</p>
-              </div>
-              <div>
-                <p className="text-2xl text-gray-900">3</p>
-                <p className="text-xs text-gray-800">Resgatadas</p>
-              </div>
+            <div className="text-center">
+              <p className="text-sm text-gray-900">
+                {rewards.filter(r => r.isUnlocked).length} benefícios disponíveis 🎁
+              </p>
+              <p className="text-xs text-gray-800 mt-1">
+                Continue reciclando para desbloquear mais
+              </p>
             </div>
           </div>
         </div>

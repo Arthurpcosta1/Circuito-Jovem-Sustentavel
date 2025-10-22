@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, MapPin, Gift, User, QrCode, Trophy } from 'lucide-react';
+import { Home, MapPin, Gift, User, QrCode, Trophy, Recycle } from 'lucide-react';
 
 interface BottomNavigationProps {
   activeTab: string;
@@ -11,14 +11,10 @@ export function BottomNavigation({ activeTab, onTabChange, isAmbassador = false 
   const tabs = [
     { id: 'dashboard', icon: Home, label: 'Início' },
     { id: 'stations', icon: MapPin, label: 'Estações' },
-    { id: 'leaderboard', icon: Trophy, label: 'Ranking' },
     { id: 'rewards', icon: Gift, label: 'Vantagens' },
+    { id: 'leaderboard', icon: Trophy, label: 'Ranking' },
     { id: 'profile', icon: User, label: 'Perfil' }
   ];
-
-  if (isAmbassador) {
-    tabs.splice(3, 0, { id: 'validation', icon: QrCode, label: 'Validar' });
-  }
 
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-purple-600 to-cyan-600 backdrop-blur-lg border-t border-purple-300/20 shadow-lg">

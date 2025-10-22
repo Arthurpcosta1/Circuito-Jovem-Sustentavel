@@ -2,21 +2,44 @@ import React, { useState } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Eye, EyeOff, Mail, Lock, Smartphone } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, Smartphone, Loader2, AlertCircle } from 'lucide-react';
+import { auth } from '../utils/api';
 
 interface LoginProps {
   onLogin: () => void;
   onSwitchToSignup: () => void;
+  onShowSetup?: () => void;
 }
 
-export const Login: React.FC<LoginProps> = ({ onLogin, onSwitchToSignup }) => {
+export const Login: React.FC<LoginProps> = ({ onLogin, onSwitchToSignup, onShowSetup }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onLogin();
+    setLoading(true);
+    setError(null);
+
+    try {
+      await auth.signIn(email, password);
+      onLogin();
+    } catch (err) {
+      console.error('Login error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao fazer login';
+      setError(errorMessage);
+      
+      // Se o erro for sobre tabela não encontrada, mostrar instruções de setup
+      if (errorMessage.includes('table') || errorMessage.includes('usuarios_7af4432d')) {
+        if (onShowSetup) {
+          setTimeout(() => onShowSetup(), 2000);
+        }
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -77,11 +100,26 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onSwitchToSignup }) => {
                 </div>
               </div>
 
+              {error && (
+                <div className="flex items-center gap-2 text-red-400 bg-red-950/30 p-3 rounded text-sm">
+                  <AlertCircle className="w-4 h-4" />
+                  {error}
+                </div>
+              )}
+
               <Button 
                 type="submit" 
-                className="w-full bg-gradient-to-r from-purple-500 to-cyan-500 hover:from-purple-600 hover:to-cyan-600 text-white"
+                disabled={loading}
+                className="w-full bg-gradient-to-r from-purple-500 to-cyan-500 hover:from-purple-600 hover:to-cyan-600 text-white disabled:opacity-50"
               >
-                Entrar
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Entrando...
+                  </>
+                ) : (
+                  'Entrar'
+                )}
               </Button>
 
               <div className="text-center pt-4">
